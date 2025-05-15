@@ -1,17 +1,78 @@
-<!-- Input para validar personal -->
-<label>Personal responsable:</label>
-<input type="text" id="input-personal" placeholder="Nombre del operador" />
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Control de Escaneo</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ccc;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+        .correcto { background-color: #d4edda; }
+        .faltante { background-color: #f8d7da; }
+        .nuevo { background-color: #fff3cd; }
+        #scanner {
+            width: 100%;
+            max-width: 500px;
+            height: 300px;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Control de Escaneo de Productos</h2>
+
+<!-- Input archivo -->
+<label>Subir archivo de inventario (.xlsx):</label>
+<input type="file" id="input-inventario" accept=".xlsx, .xls" />
+<br><br>
+
+<!-- Input nombre de operador -->
+<label>Nombre del operador:</label>
+<input type="text" id="input-personal" placeholder="Ej. Juan Pérez" />
 <br><br>
 
 <!-- Botones -->
 <button id="boton-escaneo">Iniciar escáner</button>
 <button id="boton-scan-uno" disabled>Escanear producto</button>
 
-<!-- Scanner -->
+<!-- Cámara -->
 <div id="scanner"></div>
 
-<!-- Mostrar código leído -->
-<div id="codigo-leido"></div>
+<!-- Resultado del código escaneado -->
+<div id="codigo-leido" style="margin-top: 10px; font-weight: bold;"></div>
+
+<!-- Tabla de resultados -->
+<table id="tabla-resultados">
+    <thead>
+        <tr>
+            <th>Código</th>
+            <th>Fabricante</th>
+            <th>Cantidad Esperada</th>
+            <th>Cantidad Física</th>
+            <th>Diferencia</th>
+            <th>Estatus</th>
+            <th>Observación</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
 
 <script>
     let inventario = {};
@@ -128,7 +189,7 @@
         Quagga.offDetected(procesarCodigo);
     }
 
-    // NUEVO: Botón escanear uno a uno
+    // Botón "Escanear producto" (modo manual)
     document.getElementById("boton-scan-uno").addEventListener("click", function () {
         const operador = document.getElementById("input-personal").value.trim();
         if (!operador) {
@@ -145,7 +206,6 @@
         const codigo = result.codeResult.code.trim();
         const operador = document.getElementById("input-personal").value.trim();
 
-        // Solo capturamos si está activo y esperando
         escaneados[codigo] = (escaneados[codigo] || 0) + 1;
         esperandoEscaneo = false;
 
@@ -155,4 +215,8 @@
         actualizarTabla();
     }
 </script>
+
+</body>
+</html>
+
 
