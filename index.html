@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Conciliación Inventario</title>
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+  th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+  th { background-color: #f0f0f0; }
+  input.obs { width: 100%; box-sizing: border-box; }
+  .correcto { background-color: #d4edda; }
+  .incorrecto { background-color: #f8d7da; }
+  .flex { display: flex; gap: 20px; margin-bottom: 10px; align-items: center; }
+  button { padding: 6px 12px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<h2>Conciliación de Inventario</h2>
+
+<div class="flex">
+  <label>Cargar Inventario esperado (Excel): <input type="file" id="file-inventario" accept=".xlsx,.xls" /></label>
+  <label>Cargar Escaneos (CSV): <input type="file" id="file-escaneos" accept=".csv" /></label>
+  <button id="exportar-btn" disabled>Exportar Resultado CSV</button>
+</div>
+
+<table id="tabla-resultados" style="display:none;">
+  <thead>
+    <tr>
+      <th>Código</th>
+      <th>Fabricante</th>
+      <th>Cantidad (Esperada)</th>
+      <th>Cantidad (Física)</th>
+      <th>Diferencia</th>
+      <th>Estatus</th>
+      <th>Observación</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+  let inventario = {};
+  let escaneosCount = {};
+  let resultados = [];
+
+  function limpiarTabla() {
+    const tbody = document.querySelector("#tabla-resultados tbody");
+    tbody.innerHTML = "";
+  }
+
+  function actualizarTabla() {
+    const tbody = document.querySelector("#tabla-resultados tbody");
+    tbody.innerHTML = "";
+    resultados.forEach((item, i) => {
+      const tr = document.createElement("tr");
+      tr.className = item.diferencia === 0 ? "correcto" : "incorrecto";
+      tr.innerHTML = `
+        <td>${item.codigo}</td>
+        <td>${item.fabricante || "-"}</td>
+        <td>${item.cantidadEsperada}</td>
+        <td>${item.cantidadFisica}</td>
+        <td>${item.diferencia}</td>
+        <td>${item.diferencia === 0 ? "Correcto" : "No correcto"}</td>
+        <td><input class="obs" type="text" value="${item.observacion || ""}" data-index="${i}" /></td>
+      `;
+      tbody.appendChild(tr);
+    });
+    document.getElementById("tabla-resultados").style.display = resultados.length ? "table" : "none";
+
+    // Añadir evento para observaciones
+    document.querySelectorAll("input.obs").forEach(input => {
+      input.oninput = e => {
+        const idx = e.target.dataset.index;
+        resultados[idx].observacion = e.target.value;
+      };
+    });
+  }
+
+  function procesarDatos() {
+    resultados = [];
+
+    for (const codigo in inventario) {
+      const esperado = inventario[codigo].Cantidad || 0;
+      const fabricante = inventario[codigo].Fabricante || "";
+      const fisico = escaneosCount[codigo] || 0;
+      const diferencia = esperado - fisico;
+
+      resultados.push({
+        codigo,
+        fabricante,
+        cantidadEsperada: esperado,
+        cantidadFisica: fisico,
+        diferencia,
+        observacion: ""
+      });
+    }
+
+    // También mostrar códigos escaneados que no están en inventario esperado
+    for (const codEscaneado in escaneosCount) {
+      if (!(codEscaneado in inventario)) {
+        resultados.push({
+          codigo: codEscaneado,
+          fabricante: "-",
+          cantidadEsperada: 0,
+          cantidadFisica: escaneosCount[codEscaneado],
+          diferencia: -escaneosCount[codEscaneado],
+          observacion: "Código no encontrado en inventario"
+        });
+      }
+    }
+
+    actualizarTabla();
+    document.getElementById("exportar-btn").disabled = false;
+  }
+
+  document.getElementById("file-inventario").addEventListener("change", e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      const data = evt.target.result;
+      const workbook = XLSX.read(data, { type: "binary" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(sheet);
+
+      // Esperamos columnas: Código, Fabricante, Cantidad (con exactitud de nombre)
+      inventario = {};
+      json.forEach(row => {
+        if (row.Código || row.Codigo) {
+          const codigo = row.Código || row.Codigo;
+          inventario[codigo] = {
+            Fabricante: row.Fabricante || "",
+            Cantidad: Number(row.Cantidad || 0)
+          };
+        }
+      });
+      alert("Inventario cargado: " + Object.keys(inventario).length + " registros.");
+      procesarDatos();
+    };
+    reader.readAsBinaryString(file);
+  });
+
+  document.getElementById("file-escaneos").addEventListener("change", e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      const text = evt.target.result;
+      escaneosCount = {};
+      const lines = text.trim().split(/\r?\n/);
+      lines.forEach(line => {
+        const code = line.trim();
+        if (!code) return;
+        escaneosCount[code] = (escaneosCount[code] || 0) + 1;
+      });
+      alert("Escaneos cargados: " + lines.length + " líneas.");
+      procesarDatos();
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById("exportar-btn").addEventListener("click", () => {
+    // Crear CSV con resultados
+    let csv = "Código,Fabricante,Cantidad Esperada,Cantidad Física,Diferencia,Estatus,Observación\n";
+    resultados.forEach(r => {
+      csv += `"${r.codigo}","${r.fabricante}",${r.cantidadEsperada},${r.cantidadFisica},${r.diferencia},${r.diferencia === 0 ? "Correcto" : "No correcto"},"${r.observacion || ""}"\n`;
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "conciliacion_inventario.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+</script>
+
+</body>
+</html>
