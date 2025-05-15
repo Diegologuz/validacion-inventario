@@ -1,19 +1,15 @@
-from pathlib import Path
-
-# Contenido completo del index.html con lógica para:
-# - Cargar archivo Excel (esperado)
-# - Escanear códigos con la cámara
-# - Comparar en vivo
-# - Mostrar resultados
-
-index_html_content = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>Conciliación de Inventario</title>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+    <!-- SheetJS para leer Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+
+    <!-- QuaggaJS para leer código de barras 1D -->
+    <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
+
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; }
         h2 { color: #333; }
@@ -23,20 +19,26 @@ index_html_content = """
         .correcto { background-color: #d4edda; }
         .faltante { background-color: #f8d7da; }
         .nuevo { background-color: #fff3cd; }
+        #scanner {
+            width: 320px;
+            height: 240px;
+            border: 1px solid #333;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
     <h2>Conciliación de Inventario</h2>
     <label>Cargar Inventario esperado (Excel):</label>
     <input type="file" id="input-inventario" accept=".xlsx, .xls" />
-    
-    <div id="scanner" style="width: 300px; margin-top: 20px;"></div>
-    
+
+    <div id="scanner"></div>
+
     <h3>Resultado</h3>
     <table id="tabla-resultados">
         <thead>
             <tr>
-                <th>Codigo</th>
+                <th>Código</th>
                 <th>Fabricante</th>
                 <th>Cantidad</th>
                 <th>Físico</th>
@@ -48,108 +50,137 @@ index_html_content = """
         <tbody></tbody>
     </table>
 
-    <script>
-        let inventario = {};
-        let escaneados = {};
+<script>
+    let inventario = {};
+    let escaneados = {};
 
-        document.getElementById("input-inventario").addEventListener("change", function(e) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: "array" });
-                const sheetName = workbook.SheetNames[0];
-                const sheet = workbook.Sheets[sheetName];
-                const rows = XLSX.utils.sheet_to_json(sheet);
+    // Leer Excel con SheetJS
+    document.getElementById("input-inventario").addEventListener("change", function(e) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: "array" });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const rows = XLSX.utils.sheet_to_json(sheet);
 
-                rows.forEach(row => {
-                    const codigo = row["Codigo"];
-                    inventario[codigo] = {
-                        fabricante: row["Fabricante"],
-                        cantidad: parseInt(row["Cantidad"]) || 0,
-                        fisico: 0,
-                        diferencia: 0,
-                        estatus: '',
-                        observacion: ''
-                    };
-                });
-
-                actualizarTabla();
-            };
-            reader.readAsArrayBuffer(this.files[0]);
-        });
-
-        function actualizarTabla() {
-            const tbody = document.querySelector("#tabla-resultados tbody");
-            tbody.innerHTML = "";
-            const codigos = new Set([...Object.keys(inventario), ...Object.keys(escaneados)]);
-
-            codigos.forEach(codigo => {
-                const item = inventario[codigo] || {
-                    fabricante: "-",
-                    cantidad: 0,
+            inventario = {};
+            escaneados = {};
+            rows.forEach(row => {
+                const codigo = String(row["Codigo"]).trim();
+                inventario[codigo] = {
+                    fabricante: row["Fabricante"] || "-",
+                    cantidad: parseInt(row["Cantidad"]) || 0,
                     fisico: 0,
                     diferencia: 0,
                     estatus: '',
                     observacion: ''
                 };
-
-                const fisico = escaneados[codigo] || 0;
-                const diferencia = item.cantidad - fisico;
-
-                let estatus = "";
-                let observacion = "";
-                let clase = "";
-
-                if (!(codigo in inventario)) {
-                    estatus = "Nuevo";
-                    observacion = "Código no encontrado en inventario";
-                    clase = "nuevo";
-                } else if (diferencia === 0) {
-                    estatus = "Correcto";
-                    clase = "correcto";
-                } else {
-                    estatus = `Faltan ${Math.abs(diferencia)}`;
-                    observacion = diferencia < 0 ? "Más de lo esperado" : "Faltante";
-                    clase = "faltante";
-                }
-
-                const fila = `
-                    <tr class="${clase}">
-                        <td>${codigo}</td>
-                        <td>${item.fabricante}</td>
-                        <td>${item.cantidad}</td>
-                        <td>${fisico}</td>
-                        <td>${diferencia}</td>
-                        <td>${estatus}</td>
-                        <td>${observacion}</td>
-                    </tr>
-                `;
-                tbody.innerHTML += fila;
             });
-        }
-
-        function onScanSuccess(decodedText, decodedResult) {
-            escaneados[decodedText] = (escaneados[decodedText] || 0) + 1;
             actualizarTabla();
-        }
+        };
+        reader.readAsArrayBuffer(this.files[0]);
+    });
 
-        const html5QrCode = new Html5Qrcode("scanner");
-        Html5Qrcode.getCameras().then(devices => {
-            if (devices && devices.length) {
-                html5QrCode.start(
-                    { facingMode: "environment" },
-                    { fps: 10, qrbox: 250 },
-                    onScanSuccess
-                );
+    function actualizarTabla() {
+        const tbody = document.querySelector("#tabla-resultados tbody");
+        tbody.innerHTML = "";
+        const codigos = new Set([...Object.keys(inventario), ...Object.keys(escaneados)]);
+
+        codigos.forEach(codigo => {
+            const item = inventario[codigo] || {
+                fabricante: "-",
+                cantidad: 0,
+                fisico: 0,
+                diferencia: 0,
+                estatus: '',
+                observacion: ''
+            };
+
+            const fisico = escaneados[codigo] || 0;
+            const diferencia = item.cantidad - fisico;
+
+            let estatus = "";
+            let observacion = "";
+            let clase = "";
+
+            if (!(codigo in inventario)) {
+                estatus = "Nuevo";
+                observacion = "Código no encontrado en inventario";
+                clase = "nuevo";
+            } else if (diferencia === 0) {
+                estatus = "Correcto";
+                clase = "correcto";
+            } else {
+                estatus = diferencia > 0 ? `Faltan ${diferencia}` : `Sobra ${-diferencia}`;
+                observacion = diferencia > 0 ? "Faltante" : "Más de lo esperado";
+                clase = "faltante";
             }
+
+            const fila = `
+                <tr class="${clase}">
+                    <td>${codigo}</td>
+                    <td>${item.fabricante}</td>
+                    <td>${item.cantidad}</td>
+                    <td>${fisico}</td>
+                    <td>${diferencia}</td>
+                    <td>${estatus}</td>
+                    <td>${observacion}</td>
+                </tr>
+            `;
+            tbody.innerHTML += fila;
         });
-    </script>
+    }
+
+    // Configurar y arrancar QuaggaJS para escaneo en vivo con cámara
+    Quagga.init({
+        inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.querySelector('#scanner'),
+            constraints: {
+                facingMode: "environment" // cámara trasera
+            },
+            area: { // zona del escáner dentro del video (opcional)
+                top: "25%",
+                right: "10%",
+                left: "10%",
+                bottom: "25%"
+            }
+        },
+        decoder: {
+            readers: [
+                "code_128_reader",
+                "ean_reader",
+                "ean_8_reader",
+                "code_39_reader",
+                "code_39_vin_reader",
+                "codabar_reader",
+                "upc_reader",
+                "upc_e_reader",
+                "i2of5_reader"
+            ] // lista de tipos de código de barras que leerá
+        },
+        locate: true
+    }, function(err) {
+        if (err) {
+            console.log(err);
+            return;
+        }
+        Quagga.start();
+    });
+
+    // Evento cuando se detecta un código de barras válido
+    Quagga.onDetected(function(result) {
+        if (!result || !result.codeResult || !result.codeResult.code) return;
+
+        const codigo = result.codeResult.code.trim();
+        escaneados[codigo] = (escaneados[codigo] || 0) + 1;
+        actualizarTabla();
+    });
+</script>
+
 </body>
 </html>
-"""
 
-# Guardar como index.html
-output_path = Path("/mnt/data/index.html")
-output_path.write_text(index_html_content, encoding="utf-8")
-output_path
 
