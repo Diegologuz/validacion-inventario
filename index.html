@@ -1,96 +1,30 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8" />
-    <title>Conciliación de Inventario</title>
+<!-- Input para validar personal -->
+<label>Personal responsable:</label>
+<input type="text" id="input-personal" placeholder="Nombre del operador" />
+<br><br>
 
-    <!-- SheetJS para leer Excel -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+<!-- Botones -->
+<button id="boton-escaneo">Iniciar escáner</button>
+<button id="boton-scan-uno" disabled>Escanear producto</button>
 
-    <!-- QuaggaJS para leer código de barras 1D -->
-    <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
+<!-- Scanner -->
+<div id="scanner"></div>
 
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; }
-        h2 { color: #333; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-        th { background-color: #007bff; color: white; }
-        .correcto { background-color: #d4edda; }
-        .faltante { background-color: #f8d7da; }
-        .nuevo { background-color: #fff3cd; }
-
-        #scanner {
-            width: 320px;
-            height: 240px;
-            border: 1px solid #333;
-            margin-top: 10px;
-            display: none;
-        }
-
-        #boton-escaneo {
-            margin-top: 20px;
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-
-        #boton-escaneo:hover {
-            background-color: #0056b3;
-        }
-
-        #codigo-leido {
-            margin-top: 20px;
-            font-size: 24px;
-            font-weight: bold;
-            color: green;
-        }
-    </style>
-</head>
-<body>
-    <h2>Conciliación de Inventario</h2>
-
-    <label>Cargar Inventario esperado (Excel):</label>
-    <input type="file" id="input-inventario" accept=".xlsx, .xls" />
-
-    <h3>Resultado</h3>
-
-    <!-- NUEVO: Mostrar el último código leído -->
-    <div id="codigo-leido"></div>
-
-    <table id="tabla-resultados">
-        <thead>
-            <tr>
-                <th>Código</th>
-                <th>Fabricante</th>
-                <th>Cantidad</th>
-                <th>Físico</th>
-                <th>Diferencia</th>
-                <th>Estatus</th>
-                <th>Observación</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
-
-    <button id="boton-escaneo">Iniciar escaneo</button>
-    <div id="scanner"></div>
+<!-- Mostrar código leído -->
+<div id="codigo-leido"></div>
 
 <script>
     let inventario = {};
     let escaneados = {};
     let escaneoActivo = false;
+    let esperandoEscaneo = false;
 
-    // Leer Excel
     document.getElementById("input-inventario").addEventListener("change", function(e) {
         const reader = new FileReader();
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: "array" });
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(sheet);
 
             inventario = {};
@@ -99,11 +33,7 @@
                 const codigo = String(row["Codigo"]).trim();
                 inventario[codigo] = {
                     fabricante: row["Fabricante"] || "-",
-                    cantidad: parseInt(row["Cantidad"]) || 0,
-                    fisico: 0,
-                    diferencia: 0,
-                    estatus: '',
-                    observacion: ''
+                    cantidad: parseInt(row["Cantidad"]) || 0
                 };
             });
             actualizarTabla();
@@ -117,15 +47,7 @@
         const codigos = new Set([...Object.keys(inventario), ...Object.keys(escaneados)]);
 
         codigos.forEach(codigo => {
-            const item = inventario[codigo] || {
-                fabricante: "-",
-                cantidad: 0,
-                fisico: 0,
-                diferencia: 0,
-                estatus: '',
-                observacion: ''
-            };
-
+            const item = inventario[codigo] || { fabricante: "-", cantidad: 0 };
             const fisico = escaneados[codigo] || 0;
             const diferencia = item.cantidad - fisico;
 
@@ -135,18 +57,18 @@
 
             if (!(codigo in inventario)) {
                 estatus = "Nuevo";
-                observacion = "Código no encontrado en inventario";
+                observacion = "Código no encontrado";
                 clase = "nuevo";
             } else if (diferencia === 0) {
                 estatus = "Correcto";
                 clase = "correcto";
             } else {
                 estatus = diferencia > 0 ? `Faltan ${diferencia}` : `Sobra ${-diferencia}`;
-                observacion = diferencia > 0 ? "Faltante" : "Más de lo esperado";
+                observacion = diferencia > 0 ? "Faltante" : "Exceso";
                 clase = "faltante";
             }
 
-            const fila = `
+            tbody.innerHTML += `
                 <tr class="${clase}">
                     <td>${codigo}</td>
                     <td>${item.fabricante}</td>
@@ -155,20 +77,19 @@
                     <td>${diferencia}</td>
                     <td>${estatus}</td>
                     <td>${observacion}</td>
-                </tr>
-            `;
-            tbody.innerHTML += fila;
+                </tr>`;
         });
     }
 
-    // Botón para iniciar/detener escaneo
-    document.getElementById("boton-escaneo").addEventListener("click", function() {
+    document.getElementById("boton-escaneo").addEventListener("click", function () {
         if (!escaneoActivo) {
             iniciarEscaneo();
-            this.textContent = "Detener escaneo";
+            this.textContent = "Detener escáner";
+            document.getElementById("boton-scan-uno").disabled = false;
         } else {
             detenerEscaneo();
-            this.textContent = "Iniciar escaneo";
+            this.textContent = "Iniciar escáner";
+            document.getElementById("boton-scan-uno").disabled = true;
         }
     });
 
@@ -181,28 +102,14 @@
                 name: "Live",
                 type: "LiveStream",
                 target: document.querySelector('#scanner'),
-                constraints: {
-                    facingMode: "environment"
-                },
-                area: { // zona de escaneo
-                    top: "25%", right: "10%", left: "10%", bottom: "25%"
-                }
+                constraints: { facingMode: "environment" },
+                area: { top: "25%", right: "10%", left: "10%", bottom: "25%" }
             },
             decoder: {
-                readers: [
-                    "code_128_reader",
-                    "ean_reader",
-                    "ean_8_reader",
-                    "code_39_reader",
-                    "code_39_vin_reader",
-                    "codabar_reader",
-                    "upc_reader",
-                    "upc_e_reader",
-                    "i2of5_reader"
-                ]
+                readers: ["code_128_reader", "ean_reader", "ean_8_reader", "code_39_reader", "upc_reader"]
             },
             locate: true
-        }, function(err) {
+        }, function (err) {
             if (err) {
                 console.error(err);
                 return;
@@ -210,31 +117,42 @@
             Quagga.start();
         });
 
-        Quagga.onDetected(capturarCodigo);
+        Quagga.onDetected(procesarCodigo);
     }
 
     function detenerEscaneo() {
         escaneoActivo = false;
+        esperandoEscaneo = false;
         document.getElementById("scanner").style.display = "none";
         Quagga.stop();
-        Quagga.offDetected(capturarCodigo);
+        Quagga.offDetected(procesarCodigo);
     }
 
-    function capturarCodigo(result) {
-        if (!result || !result.codeResult || !result.codeResult.code) return;
+    // NUEVO: Botón escanear uno a uno
+    document.getElementById("boton-scan-uno").addEventListener("click", function () {
+        const operador = document.getElementById("input-personal").value.trim();
+        if (!operador) {
+            alert("Por favor ingresa el nombre del operador antes de escanear.");
+            return;
+        }
+        esperandoEscaneo = true;
+        document.getElementById("codigo-leido").textContent = "Esperando escaneo...";
+    });
+
+    function procesarCodigo(result) {
+        if (!esperandoEscaneo) return;
 
         const codigo = result.codeResult.code.trim();
+        const operador = document.getElementById("input-personal").value.trim();
 
-        // Mostrar el código leído en pantalla
-        document.getElementById("codigo-leido").textContent = `Código escaneado: ${codigo}`;
-
-        // Contar escaneos
+        // Solo capturamos si está activo y esperando
         escaneados[codigo] = (escaneados[codigo] || 0) + 1;
+        esperandoEscaneo = false;
+
+        document.getElementById("codigo-leido").textContent =
+            `Código escaneado: ${codigo} (por ${operador})`;
 
         actualizarTabla();
     }
 </script>
-
-</body>
-</html>
 
