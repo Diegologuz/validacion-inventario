@@ -1,1 +1,155 @@
+from pathlib import Path
+
+# Contenido completo del index.html con lógica para:
+# - Cargar archivo Excel (esperado)
+# - Escanear códigos con la cámara
+# - Comparar en vivo
+# - Mostrar resultados
+
+index_html_content = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Conciliación de Inventario</title>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; }
+        h2 { color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        th { background-color: #007bff; color: white; }
+        .correcto { background-color: #d4edda; }
+        .faltante { background-color: #f8d7da; }
+        .nuevo { background-color: #fff3cd; }
+    </style>
+</head>
+<body>
+    <h2>Conciliación de Inventario</h2>
+    <label>Cargar Inventario esperado (Excel):</label>
+    <input type="file" id="input-inventario" accept=".xlsx, .xls" />
+    
+    <div id="scanner" style="width: 300px; margin-top: 20px;"></div>
+    
+    <h3>Resultado</h3>
+    <table id="tabla-resultados">
+        <thead>
+            <tr>
+                <th>Codigo</th>
+                <th>Fabricante</th>
+                <th>Cantidad</th>
+                <th>Físico</th>
+                <th>Diferencia</th>
+                <th>Estatus</th>
+                <th>Observación</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        let inventario = {};
+        let escaneados = {};
+
+        document.getElementById("input-inventario").addEventListener("change", function(e) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: "array" });
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+                const rows = XLSX.utils.sheet_to_json(sheet);
+
+                rows.forEach(row => {
+                    const codigo = row["Codigo"];
+                    inventario[codigo] = {
+                        fabricante: row["Fabricante"],
+                        cantidad: parseInt(row["Cantidad"]) || 0,
+                        fisico: 0,
+                        diferencia: 0,
+                        estatus: '',
+                        observacion: ''
+                    };
+                });
+
+                actualizarTabla();
+            };
+            reader.readAsArrayBuffer(this.files[0]);
+        });
+
+        function actualizarTabla() {
+            const tbody = document.querySelector("#tabla-resultados tbody");
+            tbody.innerHTML = "";
+            const codigos = new Set([...Object.keys(inventario), ...Object.keys(escaneados)]);
+
+            codigos.forEach(codigo => {
+                const item = inventario[codigo] || {
+                    fabricante: "-",
+                    cantidad: 0,
+                    fisico: 0,
+                    diferencia: 0,
+                    estatus: '',
+                    observacion: ''
+                };
+
+                const fisico = escaneados[codigo] || 0;
+                const diferencia = item.cantidad - fisico;
+
+                let estatus = "";
+                let observacion = "";
+                let clase = "";
+
+                if (!(codigo in inventario)) {
+                    estatus = "Nuevo";
+                    observacion = "Código no encontrado en inventario";
+                    clase = "nuevo";
+                } else if (diferencia === 0) {
+                    estatus = "Correcto";
+                    clase = "correcto";
+                } else {
+                    estatus = `Faltan ${Math.abs(diferencia)}`;
+                    observacion = diferencia < 0 ? "Más de lo esperado" : "Faltante";
+                    clase = "faltante";
+                }
+
+                const fila = `
+                    <tr class="${clase}">
+                        <td>${codigo}</td>
+                        <td>${item.fabricante}</td>
+                        <td>${item.cantidad}</td>
+                        <td>${fisico}</td>
+                        <td>${diferencia}</td>
+                        <td>${estatus}</td>
+                        <td>${observacion}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += fila;
+            });
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            escaneados[decodedText] = (escaneados[decodedText] || 0) + 1;
+            actualizarTabla();
+        }
+
+        const html5QrCode = new Html5Qrcode("scanner");
+        Html5Qrcode.getCameras().then(devices => {
+            if (devices && devices.length) {
+                html5QrCode.start(
+                    { facingMode: "environment" },
+                    { fps: 10, qrbox: 250 },
+                    onScanSuccess
+                );
+            }
+        });
+    </script>
+</body>
+</html>
+"""
+
+# Guardar como index.html
+output_path = Path("/mnt/data/index.html")
+output_path.write_text(index_html_content, encoding="utf-8")
+output_path
 
