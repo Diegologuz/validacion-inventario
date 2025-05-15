@@ -1,58 +1,8 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8" />
-    <title>Conciliación de Inventario</title>
-
-    <!-- SheetJS para leer Excel -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-
-    <!-- QuaggaJS para leer código de barras 1D -->
-    <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
-
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; }
-        h2 { color: #333; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-        th { background-color: #007bff; color: white; }
-        .correcto { background-color: #d4edda; }
-        .faltante { background-color: #f8d7da; }
-        .nuevo { background-color: #fff3cd; }
-        #scanner {
-            width: 320px;
-            height: 240px;
-            border: 1px solid #333;
-            margin-top: 20px;
-        }
-    </style>
-</head>
-<body>
-    <h2>Conciliación de Inventario</h2>
-    <label>Cargar Inventario esperado (Excel):</label>
-    <input type="file" id="input-inventario" accept=".xlsx, .xls" />
-
-    <div id="scanner"></div>
-
-    <h3>Resultado</h3>
-    <table id="tabla-resultados">
-        <thead>
-            <tr>
-                <th>Código</th>
-                <th>Fabricante</th>
-                <th>Cantidad</th>
-                <th>Físico</th>
-                <th>Diferencia</th>
-                <th>Estatus</th>
-                <th>Observación</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
-
 <script>
     let inventario = {};
     let escaneados = {};
+    let ultimoCodigo = null;
+    let tiempoUltimoScan = 0;
 
     // Leer Excel con SheetJS
     document.getElementById("input-inventario").addEventListener("change", function(e) {
@@ -139,13 +89,7 @@
             type: "LiveStream",
             target: document.querySelector('#scanner'),
             constraints: {
-                facingMode: "environment" // cámara trasera
-            },
-            area: { // zona del escáner dentro del video (opcional)
-                top: "25%",
-                right: "10%",
-                left: "10%",
-                bottom: "25%"
+                facingMode: "environment"
             }
         },
         decoder: {
@@ -159,28 +103,38 @@
                 "upc_reader",
                 "upc_e_reader",
                 "i2of5_reader"
-            ] // lista de tipos de código de barras que leerá
+            ]
         },
-        locate: true
+        locate: true,
+        numOfWorkers: 2,
+        halfSample: false
     }, function(err) {
         if (err) {
-            console.log(err);
+            console.log("Error al iniciar Quagga:", err);
             return;
         }
         Quagga.start();
     });
 
-    // Evento cuando se detecta un código de barras válido
+    // Evitar duplicados múltiples
     Quagga.onDetected(function(result) {
         if (!result || !result.codeResult || !result.codeResult.code) return;
 
         const codigo = result.codeResult.code.trim();
+
+        // Filtrar códigos muy cortos (a veces Quagga detecta ruido como códigos de 2 dígitos)
+        if (codigo.length < 6) return;
+
+        const ahora = Date.now();
+        if (codigo === ultimoCodigo && ahora - tiempoUltimoScan < 2000) {
+            return; // ignorar duplicado reciente
+        }
+
+        ultimoCodigo = codigo;
+        tiempoUltimoScan = ahora;
+
         escaneados[codigo] = (escaneados[codigo] || 0) + 1;
         actualizarTabla();
     });
 </script>
-
-</body>
-</html>
-
 
