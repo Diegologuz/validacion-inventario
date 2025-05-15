@@ -1,184 +1,154 @@
+from pathlib import Path
+
+# Contenido completo del index.html con lógica para:
+# - Cargar archivo Excel (esperado)
+# - Escanear códigos con la cámara
+# - Comparar en vivo
+# - Mostrar resultados
+
+index_html_content = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<title>Conciliación Inventario</title>
-<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-<style>
-  body { font-family: Arial, sans-serif; margin: 20px; }
-  table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-  th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-  th { background-color: #f0f0f0; }
-  input.obs { width: 100%; box-sizing: border-box; }
-  .correcto { background-color: #d4edda; }
-  .incorrecto { background-color: #f8d7da; }
-  .flex { display: flex; gap: 20px; margin-bottom: 10px; align-items: center; }
-  button { padding: 6px 12px; cursor: pointer; }
-</style>
+    <meta charset="UTF-8">
+    <title>Conciliación de Inventario</title>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; }
+        h2 { color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        th { background-color: #007bff; color: white; }
+        .correcto { background-color: #d4edda; }
+        .faltante { background-color: #f8d7da; }
+        .nuevo { background-color: #fff3cd; }
+    </style>
 </head>
 <body>
+    <h2>Conciliación de Inventario</h2>
+    <label>Cargar Inventario esperado (Excel):</label>
+    <input type="file" id="input-inventario" accept=".xlsx, .xls" />
+    
+    <div id="scanner" style="width: 300px; margin-top: 20px;"></div>
+    
+    <h3>Resultado</h3>
+    <table id="tabla-resultados">
+        <thead>
+            <tr>
+                <th>Codigo</th>
+                <th>Fabricante</th>
+                <th>Cantidad</th>
+                <th>Físico</th>
+                <th>Diferencia</th>
+                <th>Estatus</th>
+                <th>Observación</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
 
-<h2>Conciliación de Inventario</h2>
+    <script>
+        let inventario = {};
+        let escaneados = {};
 
-<div class="flex">
-  <label>Cargar Inventario esperado (Excel): <input type="file" id="file-inventario" accept=".xlsx,.xls" /></label>
-  <label>Cargar Escaneos (CSV): <input type="file" id="file-escaneos" accept=".csv" /></label>
-  <button id="exportar-btn" disabled>Exportar Resultado CSV</button>
-</div>
+        document.getElementById("input-inventario").addEventListener("change", function(e) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: "array" });
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+                const rows = XLSX.utils.sheet_to_json(sheet);
 
-<table id="tabla-resultados" style="display:none;">
-  <thead>
-    <tr>
-      <th>Código</th>
-      <th>Fabricante</th>
-      <th>Cantidad (Esperada)</th>
-      <th>Cantidad (Física)</th>
-      <th>Diferencia</th>
-      <th>Estatus</th>
-      <th>Observación</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+                rows.forEach(row => {
+                    const codigo = row["Codigo"];
+                    inventario[codigo] = {
+                        fabricante: row["Fabricante"],
+                        cantidad: parseInt(row["Cantidad"]) || 0,
+                        fisico: 0,
+                        diferencia: 0,
+                        estatus: '',
+                        observacion: ''
+                    };
+                });
 
-<script>
-  let inventario = {};
-  let escaneosCount = {};
-  let resultados = [];
-
-  function limpiarTabla() {
-    const tbody = document.querySelector("#tabla-resultados tbody");
-    tbody.innerHTML = "";
-  }
-
-  function actualizarTabla() {
-    const tbody = document.querySelector("#tabla-resultados tbody");
-    tbody.innerHTML = "";
-    resultados.forEach((item, i) => {
-      const tr = document.createElement("tr");
-      tr.className = item.diferencia === 0 ? "correcto" : "incorrecto";
-      tr.innerHTML = `
-        <td>${item.codigo}</td>
-        <td>${item.fabricante || "-"}</td>
-        <td>${item.cantidadEsperada}</td>
-        <td>${item.cantidadFisica}</td>
-        <td>${item.diferencia}</td>
-        <td>${item.diferencia === 0 ? "Correcto" : "No correcto"}</td>
-        <td><input class="obs" type="text" value="${item.observacion || ""}" data-index="${i}" /></td>
-      `;
-      tbody.appendChild(tr);
-    });
-    document.getElementById("tabla-resultados").style.display = resultados.length ? "table" : "none";
-
-    // Añadir evento para observaciones
-    document.querySelectorAll("input.obs").forEach(input => {
-      input.oninput = e => {
-        const idx = e.target.dataset.index;
-        resultados[idx].observacion = e.target.value;
-      };
-    });
-  }
-
-  function procesarDatos() {
-    resultados = [];
-
-    for (const codigo in inventario) {
-      const esperado = inventario[codigo].Cantidad || 0;
-      const fabricante = inventario[codigo].Fabricante || "";
-      const fisico = escaneosCount[codigo] || 0;
-      const diferencia = esperado - fisico;
-
-      resultados.push({
-        codigo,
-        fabricante,
-        cantidadEsperada: esperado,
-        cantidadFisica: fisico,
-        diferencia,
-        observacion: ""
-      });
-    }
-
-    // También mostrar códigos escaneados que no están en inventario esperado
-    for (const codEscaneado in escaneosCount) {
-      if (!(codEscaneado in inventario)) {
-        resultados.push({
-          codigo: codEscaneado,
-          fabricante: "-",
-          cantidadEsperada: 0,
-          cantidadFisica: escaneosCount[codEscaneado],
-          diferencia: -escaneosCount[codEscaneado],
-          observacion: "Código no encontrado en inventario"
+                actualizarTabla();
+            };
+            reader.readAsArrayBuffer(this.files[0]);
         });
-      }
-    }
 
-    actualizarTabla();
-    document.getElementById("exportar-btn").disabled = false;
-  }
+        function actualizarTabla() {
+            const tbody = document.querySelector("#tabla-resultados tbody");
+            tbody.innerHTML = "";
+            const codigos = new Set([...Object.keys(inventario), ...Object.keys(escaneados)]);
 
-  document.getElementById("file-inventario").addEventListener("change", e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = evt => {
-      const data = evt.target.result;
-      const workbook = XLSX.read(data, { type: "binary" });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const json = XLSX.utils.sheet_to_json(sheet);
+            codigos.forEach(codigo => {
+                const item = inventario[codigo] || {
+                    fabricante: "-",
+                    cantidad: 0,
+                    fisico: 0,
+                    diferencia: 0,
+                    estatus: '',
+                    observacion: ''
+                };
 
-      // Esperamos columnas: Código, Fabricante, Cantidad (con exactitud de nombre)
-      inventario = {};
-      json.forEach(row => {
-        if (row.Código || row.Codigo) {
-          const codigo = row.Código || row.Codigo;
-          inventario[codigo] = {
-            Fabricante: row.Fabricante || "",
-            Cantidad: Number(row.Cantidad || 0)
-          };
+                const fisico = escaneados[codigo] || 0;
+                const diferencia = item.cantidad - fisico;
+
+                let estatus = "";
+                let observacion = "";
+                let clase = "";
+
+                if (!(codigo in inventario)) {
+                    estatus = "Nuevo";
+                    observacion = "Código no encontrado en inventario";
+                    clase = "nuevo";
+                } else if (diferencia === 0) {
+                    estatus = "Correcto";
+                    clase = "correcto";
+                } else {
+                    estatus = `Faltan ${Math.abs(diferencia)}`;
+                    observacion = diferencia < 0 ? "Más de lo esperado" : "Faltante";
+                    clase = "faltante";
+                }
+
+                const fila = `
+                    <tr class="${clase}">
+                        <td>${codigo}</td>
+                        <td>${item.fabricante}</td>
+                        <td>${item.cantidad}</td>
+                        <td>${fisico}</td>
+                        <td>${diferencia}</td>
+                        <td>${estatus}</td>
+                        <td>${observacion}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += fila;
+            });
         }
-      });
-      alert("Inventario cargado: " + Object.keys(inventario).length + " registros.");
-      procesarDatos();
-    };
-    reader.readAsBinaryString(file);
-  });
 
-  document.getElementById("file-escaneos").addEventListener("change", e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = evt => {
-      const text = evt.target.result;
-      escaneosCount = {};
-      const lines = text.trim().split(/\r?\n/);
-      lines.forEach(line => {
-        const code = line.trim();
-        if (!code) return;
-        escaneosCount[code] = (escaneosCount[code] || 0) + 1;
-      });
-      alert("Escaneos cargados: " + lines.length + " líneas.");
-      procesarDatos();
-    };
-    reader.readAsText(file);
-  });
+        function onScanSuccess(decodedText, decodedResult) {
+            escaneados[decodedText] = (escaneados[decodedText] || 0) + 1;
+            actualizarTabla();
+        }
 
-  document.getElementById("exportar-btn").addEventListener("click", () => {
-    // Crear CSV con resultados
-    let csv = "Código,Fabricante,Cantidad Esperada,Cantidad Física,Diferencia,Estatus,Observación\n";
-    resultados.forEach(r => {
-      csv += `"${r.codigo}","${r.fabricante}",${r.cantidadEsperada},${r.cantidadFisica},${r.diferencia},${r.diferencia === 0 ? "Correcto" : "No correcto"},"${r.observacion || ""}"\n`;
-    });
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "conciliacion_inventario.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-</script>
-
+        const html5QrCode = new Html5Qrcode("scanner");
+        Html5Qrcode.getCameras().then(devices => {
+            if (devices && devices.length) {
+                html5QrCode.start(
+                    { facingMode: "environment" },
+                    { fps: 10, qrbox: 250 },
+                    onScanSuccess
+                );
+            }
+        });
+    </script>
 </body>
 </html>
+"""
+
+# Guardar como index.html
+output_path = Path("/mnt/data/index.html")
+output_path.write_text(index_html_content, encoding="utf-8")
+output_path
