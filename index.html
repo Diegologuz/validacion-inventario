@@ -19,13 +19,15 @@
         .correcto { background-color: #d4edda; }
         .faltante { background-color: #f8d7da; }
         .nuevo { background-color: #fff3cd; }
+
         #scanner {
             width: 320px;
             height: 240px;
             border: 1px solid #333;
-            margin-top: 20px;
-            display: none; /* oculto por defecto */
+            margin-top: 10px;
+            display: none;
         }
+
         #boton-escaneo {
             margin-top: 20px;
             padding: 10px 20px;
@@ -34,8 +36,16 @@
             border: none;
             cursor: pointer;
         }
+
         #boton-escaneo:hover {
             background-color: #0056b3;
+        }
+
+        #codigo-leido {
+            margin-top: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            color: green;
         }
     </style>
 </head>
@@ -46,6 +56,10 @@
     <input type="file" id="input-inventario" accept=".xlsx, .xls" />
 
     <h3>Resultado</h3>
+
+    <!-- NUEVO: Mostrar el último código leído -->
+    <div id="codigo-leido"></div>
+
     <table id="tabla-resultados">
         <thead>
             <tr>
@@ -170,7 +184,7 @@
                 constraints: {
                     facingMode: "environment"
                 },
-                area: {
+                area: { // zona de escaneo
                     top: "25%", right: "10%", left: "10%", bottom: "25%"
                 }
             },
@@ -208,11 +222,19 @@
 
     function capturarCodigo(result) {
         if (!result || !result.codeResult || !result.codeResult.code) return;
+
         const codigo = result.codeResult.code.trim();
+
+        // Mostrar el código leído en pantalla
+        document.getElementById("codigo-leido").textContent = `Código escaneado: ${codigo}`;
+
+        // Contar escaneos
         escaneados[codigo] = (escaneados[codigo] || 0) + 1;
+
         actualizarTabla();
     }
 </script>
 
 </body>
 </html>
+
