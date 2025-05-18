@@ -3,219 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mi Empresa - Página Profesional</title>
-    
-    <!-- Fuentes Google -->
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    
-    <!-- Estilos CSS -->
-    <style>
-        /* Reset básico */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        /* Fuentes y colores */
-        body {
-            font-family: 'Roboto', sans-serif;
-            background-color: #f4f7fc;
-            color: #333;
-            line-height: 1.6;
-        }
-
-        /* Barra de navegación */
-        nav {
-            background-color: #1a1a1a;
-            color: #fff;
-            padding: 15px 0;
-            text-align: center;
-        }
-
-        nav ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        nav ul li {
-            display: inline;
-            margin-right: 30px;
-        }
-
-        nav ul li a {
-            color: #fff;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 16px;
-        }
-
-        nav ul li a:hover {
-            color: #4CAF50;
-        }
-
-        /* Sección principal - Hero */
-        .hero {
-            background: url('https://via.placeholder.com/1600x600') center/cover no-repeat;
-            color: #fff;
-            padding: 100px 0;
-            text-align: center;
-        }
-
-        .hero h1 {
-            font-size: 3rem;
-            font-weight: 700;
-        }
-
-        .hero p {
-            font-size: 1.2rem;
-            margin-top: 20px;
-        }
-
-        /* Secciones */
-        section {
-            padding: 50px 20px;
-            text-align: center;
-        }
-
-        section h2 {
-            font-size: 2rem;
-            margin-bottom: 30px;
-        }
-
-        section p {
-            font-size: 1.1rem;
-            max-width: 800px;
-            margin: 0 auto;
-            margin-bottom: 20px;
-        }
-
-        /* Herramientas */
-        .tools {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
-        }
-
-        .tool-card {
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            text-align: center;
-        }
-
-        .tool-card h3 {
-            font-size: 1.5rem;
-            margin-bottom: 10px;
-        }
-
-        .tool-card p {
-            font-size: 1rem;
-            color: #666;
-        }
-
-        /* Formulario de contacto */
-        .contact-form {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #fff;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        .contact-form input, .contact-form textarea {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 1rem;
-        }
-
-        .contact-form button {
-            background-color: #4CAF50;
-            color: #fff;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 5px;
-            font-size: 1.2rem;
-            cursor: pointer;
-        }
-
-        .contact-form button:hover {
-            background-color: #45a049;
-        }
-
-        /* Pie de página */
-        footer {
-            background-color: #1a1a1a;
-            color: #fff;
-            padding: 20px 0;
-            text-align: center;
-        }
-    </style>
+    <title>Formulario de Contacto</title>
 </head>
 <body>
-    <!-- Barra de navegación -->
-    <nav>
-        <ul>
-            <li><a href="#inicio">Inicio</a></li>
-            <li><a href="#herramientas">Herramientas</a></li>
-            <li><a href="#quienes-somos">Quiénes somos</a></li>
-            <li><a href="#contacto">Contacto</a></li>
-        </ul>
-    </nav>
 
-    <!-- Sección Hero -->
-    <header id="inicio" class="hero">
-        <h1>Bienvenido a Nuestra Empresa</h1>
-        <p>Soluciones innovadoras para tu negocio</p>
-    </header>
+<h2>Formulario de Contacto</h2>
 
-    <!-- Sección Herramientas -->
-    <section id="herramientas">
-        <h2>Nuestras Herramientas</h2>
-        <div class="tools">
-            <div class="tool-card">
-                <h3>Herramienta 1</h3>
-                <p>Descripción breve de la herramienta 1. Ayuda a mejorar la eficiencia.</p>
-            </div>
-            <div class="tool-card">
-                <h3>Herramienta 2</h3>
-                <p>Descripción breve de la herramienta 2. Optimiza los procesos internos.</p>
-            </div>
-            <div class="tool-card">
-                <h3>Herramienta 3</h3>
-                <p>Descripción breve de la herramienta 3. Ofrece soluciones a largo plazo.</p>
-            </div>
-        </div>
-    </section>
+<form action="mailto:tuemail@dominio.com" method="post" enctype="text/plain">
+    <label for="nombre">Nombre:</label><br>
+    <input type="text" id="nombre" name="nombre" required><br><br>
+    
+    <label for="email">Correo Electrónico:</label><br>
+    <input type="email" id="email" name="email" required><br><br>
 
-    <!-- Sección Quiénes somos -->
-    <section id="quienes-somos">
-        <h2>Quiénes Somos</h2>
-        <p>Somos una empresa dedicada a proporcionar soluciones digitales que optimizan los procesos de nuestros clientes. Nuestro equipo está compuesto por expertos en distintas áreas, comprometidos con la innovación y el progreso.</p>
-    </section>
+    <label for="mensaje">Mensaje:</label><br>
+    <textarea id="mensaje" name="mensaje" rows="4" cols="50" required></textarea><br><br>
 
-    <!-- Sección Contacto -->
-    <section id="contacto">
-        <h2>Contacto</h2>
-        <div class="contact-form">
-            <h3>Envíanos un mensaje</h3>
-            <form action="#">
-                <input type="text" name="nombre" placeholder="Tu Nombre" required>
-                <input type="email" name="email" placeholder="Tu Correo Electrónico" required>
-                <textarea name="mensaje" placeholder="Tu Mensaje" rows="4" required></textarea>
-                <button type="submit">Enviar Mensaje</button>
-            </form>
-        </div>
-    </section>
+    <button type="submit">Enviar Correo</button>
+</form>
 
-    <!-- Pie de página -->
-    <footer>
-        <p>&copy; 2025 Mi Empresa - Todos los derechos reservados</p>
-    </footer>
 </body>
 </html>
